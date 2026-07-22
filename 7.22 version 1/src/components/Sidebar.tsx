@@ -48,6 +48,13 @@ export default function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 h-full w-sidebar-width bg-primary flex flex-col p-gutter border-r border-outline-variant z-50">
+      <Link
+        href="/"
+        className="flex items-center gap-2 text-on-primary/70 hover:text-on-primary text-body-sm font-bold pb-3 mb-3 border-b border-on-primary/10 transition-colors"
+      >
+        <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+        전체 홈으로
+      </Link>
       <div className="text-title-sm font-title-sm font-bold text-on-primary mb-stack-lg flex items-center gap-2">
         <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
           factory

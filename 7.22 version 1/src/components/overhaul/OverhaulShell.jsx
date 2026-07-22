@@ -84,6 +84,13 @@ function OverhaulNav({ children }) {
     <div className="flex min-h-screen overflow-x-hidden">
       {/* 사이드바 (데스크톱) */}
       <aside className="hidden md:flex flex-col p-4 gap-2 h-screen fixed left-0 top-0 w-[280px] bg-surface-container border-r border-border-subtle z-50">
+        <Link
+          href="/"
+          className="flex items-center gap-2 px-2 pb-3 mb-3 border-b border-border-subtle text-on-surface-variant hover:text-on-surface text-body-sm font-bold transition-colors"
+        >
+          <Icon name="arrow_back" className="text-[18px]" />
+          전체 홈으로
+        </Link>
         <div className="flex items-center gap-3 px-2 mb-8">
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-on-primary">
             <Icon name="factory" />
@@ -133,6 +140,13 @@ function OverhaulNav({ children }) {
       <main className="flex-1 md:ml-[280px] w-full min-h-screen flex flex-col pb-24 md:pb-12">
         <header className="sticky top-0 z-40 bg-surface-glass backdrop-blur-xl border-b border-border-subtle px-gutter h-16 flex justify-between items-center w-full">
           <div className="flex items-center gap-6">
+            <Link
+              href="/"
+              className="md:hidden w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors text-on-surface-variant"
+              aria-label="전체 홈으로"
+            >
+              <Icon name="arrow_back" />
+            </Link>
             <h2 className="text-2xl font-black text-primary tracking-tight">PlantSync Pro</h2>
             <span className="hidden lg:inline text-sm text-on-surface-variant">
               {project?.plant} · {project?.name}
