@@ -20,7 +20,7 @@ export default async function HistoryListPage({
   );
 
   return (
-    <form action="/history" method="GET">
+    <form action="/history-app/history" method="GET">
       <Header title="고장이력 관리" />
       <div className="p-container-padding space-y-gutter max-w-[1600px] mx-auto w-full">
         <section className="bg-white p-6 rounded-lg border border-border-subtle shadow-sm space-y-4">
@@ -83,7 +83,7 @@ export default async function HistoryListPage({
               조회하기
             </button>
             <Link
-              href="/history/new"
+              href="/history-app/history/new"
               className="shrink-0 px-4 py-2 border border-primary text-primary rounded-lg font-bold hover:bg-primary/5 flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-[20px]">add</span>

@@ -41,7 +41,7 @@ export default function ExportSuccessPage() {
             <button className="px-10 py-4 bg-primary text-on-primary rounded-lg font-bold text-title-sm hover:bg-primary-container shadow-md flex items-center gap-3">
               <span className="material-symbols-outlined">download</span>다운로드
             </button>
-            <Link href="/history" className="px-8 py-4 border border-outline text-primary rounded-lg font-bold">
+            <Link href="/history-app/history" className="px-8 py-4 border border-outline text-primary rounded-lg font-bold">
               기록 보기
             </Link>
           </div>

@@ -24,7 +24,7 @@ export default async function EquipmentPage({
         <p className="mb-stack-md text-body-sm text-on-surface-variant">
           별도의 설비 마스터 없이, 등록된 고장이력에서 지사·설비명을 집계해 보여줍니다.
         </p>
-        <form action="/equipment" method="GET" className="mb-stack-lg bg-white p-6 rounded-lg border border-border-subtle shadow-sm flex flex-wrap items-end gap-4">
+        <form action="/history-app/equipment" method="GET" className="mb-stack-lg bg-white p-6 rounded-lg border border-border-subtle shadow-sm flex flex-wrap items-end gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-label-caps text-on-surface-variant uppercase">지사 선택</label>
             <select name="branch" defaultValue={branch ?? ""} className="border border-border-subtle rounded-lg px-4 py-2">

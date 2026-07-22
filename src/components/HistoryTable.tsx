@@ -36,7 +36,7 @@ export default function HistoryTable({
         {rows.map((row) => (
           <tr
             key={row.id}
-            onDoubleClick={() => router.push(`/history/${row.id}`)}
+            onDoubleClick={() => router.push(`/history-app/history/${row.id}`)}
             title="더블클릭하여 상세보기"
             className="hover:bg-slate-50 cursor-pointer transition-colors select-none"
           >

@@ -7,7 +7,7 @@ import type { NextRequest } from "next/server";
  * keep the Vercel demo URL from being wide open to anyone who stumbles on it).
  * No DEMO_PASSWORD env var set -> no gate (local dev stays unaffected).
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const password = process.env.DEMO_PASSWORD;
   if (!password) return NextResponse.next();
 

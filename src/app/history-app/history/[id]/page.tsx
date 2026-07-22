@@ -85,13 +85,13 @@ export default async function HistoryDetailPage({
           <div className="flex gap-3">
             {!isResolved && <CompleteStatusAction failureId={failure.id} />}
             <Link
-              href={`/history/${failure.id}/edit`}
+              href={`/history-app/history/${failure.id}/edit`}
               className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-primary text-primary font-bold hover:bg-primary/5"
             >
               <span className="material-symbols-outlined text-[20px]">edit</span>수정
             </Link>
             <Link
-              href="/history"
+              href="/history-app/history"
               className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-outline text-on-surface font-bold hover:bg-surface-container"
             >
               <span className="material-symbols-outlined text-[20px]">list</span>목록으로

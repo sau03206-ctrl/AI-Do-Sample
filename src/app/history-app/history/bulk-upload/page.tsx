@@ -122,7 +122,7 @@ export default function BulkUploadPage() {
             <p className="text-secondary text-body-sm leading-relaxed">
               고장상보 PDF(또는 HWP) 파일을 여러 개 선택하거나 드래그하면, 파일마다 자동으로 항목을 추출해
               검토 없이 바로 고장이력으로 등록합니다. 등록 전에 내용을 검토하고 싶다면{" "}
-              <Link href="/history/new" className="text-primary underline font-bold">
+              <Link href="/history-app/history/new" className="text-primary underline font-bold">
                 신규 등록
               </Link>{" "}
               화면에서 한 건씩 처리해주세요.
@@ -211,7 +211,7 @@ export default function BulkUploadPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {entry.status === "done" && entry.resultId && (
-                          <Link href={`/history/${entry.resultId}`} className="text-primary font-bold hover:underline">
+                          <Link href={`/history-app/history/${entry.resultId}`} className="text-primary font-bold hover:underline">
                             상세보기 →
                           </Link>
                         )}

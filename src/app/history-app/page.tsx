@@ -177,7 +177,7 @@ export default function DashboardPage() {
           <div className="lg:col-span-7 bg-white rounded-xl border border-border-subtle overflow-hidden">
             <div className="p-gutter border-b border-border-subtle bg-table-header flex justify-between items-center">
               <h3 className="text-title-sm font-title-sm text-primary uppercase">최근 등록 고장이력</h3>
-              <Link href="/history" className="text-primary hover:underline text-xs font-bold">
+              <Link href="/history-app/history" className="text-primary hover:underline text-xs font-bold">
                 전체보기
               </Link>
             </div>
@@ -188,7 +188,7 @@ export default function DashboardPage() {
                 stats.recent.map((r) => (
                   <Link
                     key={r.id}
-                    href={`/history/${r.id}`}
+                    href={`/history-app/history/${r.id}`}
                     className="flex items-start gap-4 p-3 rounded-lg border border-border-subtle hover:bg-background transition-all group"
                   >
                     <div className="w-10 h-10 rounded bg-error-container flex items-center justify-center text-error flex-shrink-0">
@@ -212,7 +212,7 @@ export default function DashboardPage() {
         </section>
       </main>
       <Link
-        href="/history/new"
+        href="/history-app/history/new"
         className="fixed bottom-8 right-8 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-transform z-50"
       >
         <span className="material-symbols-outlined scale-125">add</span>

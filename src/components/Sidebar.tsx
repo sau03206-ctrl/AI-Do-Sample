@@ -5,17 +5,18 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 const NAV_ITEMS = [
-  { href: "/", label: "대시보드", icon: "dashboard", iconFilled: false },
+  { href: "/history-app", label: "대시보드", icon: "dashboard", iconFilled: false },
   {
-    href: "/history",
+    href: "/history-app/history",
     label: "고장이력",
     icon: "history_edu",
     iconFilled: true,
     match: (path: string) =>
-      (path.startsWith("/history") && !path.startsWith("/history/bulk-upload")) || path === "/export-success",
+      (path.startsWith("/history-app/history") && !path.startsWith("/history-app/history/bulk-upload")) ||
+      path === "/history-app/export-success",
   },
-  { href: "/equipment", label: "설비목록", icon: "settings_input_component", iconFilled: false },
-  { href: "/history/bulk-upload", label: "고장상보 일괄등록", icon: "upload_file", iconFilled: false },
+  { href: "/history-app/equipment", label: "설비목록", icon: "settings_input_component", iconFilled: false },
+  { href: "/history-app/history/bulk-upload", label: "고장상보 일괄등록", icon: "upload_file", iconFilled: false },
 ];
 
 export default function Sidebar() {
@@ -36,7 +37,7 @@ export default function Sidebar() {
     try {
       const res = await fetch("/api/reset", { method: "POST" });
       if (!res.ok) throw new Error("reset failed");
-      router.push("/");
+      router.push("/history-app");
       router.refresh();
     } catch {
       window.alert("리셋 중 오류가 발생했습니다. 다시 시도해주세요.");

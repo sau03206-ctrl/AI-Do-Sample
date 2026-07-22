@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Sidebar from "@/components/Sidebar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Plant Ops Manager - 열원설비 관리 시스템",
-  description: "발전/플랜트 열원설비 고장이력 관리 시스템",
+  title: "AI-Do-Sample — 발전소 운영관리 웹 스위트",
+  description: "열원설비 고장이력 관리 + 발전소 오버홀 공정관리 통합 앱",
 };
 
 export default function RootLayout({
@@ -26,10 +25,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-body-md text-on-surface antialiased">
-        <Sidebar />
-        <div className="ml-sidebar-width min-h-screen">{children}</div>
-      </body>
+      <body className="font-body-md text-on-surface antialiased">{children}</body>
     </html>
   );
 }

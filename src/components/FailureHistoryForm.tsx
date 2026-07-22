@@ -175,7 +175,7 @@ export default function FailureHistoryForm({
         return;
       }
 
-      router.push(`/history/${mode === "create" ? data.id : failureId}`);
+      router.push(`/history-app/history/${mode === "create" ? data.id : failureId}`);
     } catch {
       setSaveState("error");
       setSaveError("저장 중 오류가 발생했습니다. 네트워크 상태를 확인하고 다시 시도해주세요.");
@@ -421,7 +421,7 @@ export default function FailureHistoryForm({
           <div className="flex justify-end gap-stack-md pt-stack-lg">
             <button
               type="button"
-              onClick={() => router.push(mode === "edit" ? `/history/${failureId}` : "/history")}
+              onClick={() => router.push(mode === "edit" ? `/history-app/history/${failureId}` : "/history-app/history")}
               className="px-8 py-3 rounded-lg border border-primary text-primary font-bold"
             >
               취소
