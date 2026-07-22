@@ -10,6 +10,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const id = createFailureHistory(body);
+  const id = await createFailureHistory(body);
   return Response.json({ id }, { status: 201 });
 }

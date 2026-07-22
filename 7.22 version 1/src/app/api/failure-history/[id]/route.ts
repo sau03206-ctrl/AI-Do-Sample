@@ -4,7 +4,7 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/failure-hi
   const { id } = await ctx.params;
   const failureId = Number(id);
 
-  const existing = getFailureHistoryById(failureId);
+  const existing = await getFailureHistoryById(failureId);
   if (!existing) {
     return Response.json({ error: "고장이력을 찾을 수 없습니다." }, { status: 404 });
   }
@@ -14,6 +14,6 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/failure-hi
     return Response.json({ error: "변경할 내용이 없습니다." }, { status: 400 });
   }
 
-  updateFailureHistory(failureId, body);
+  await updateFailureHistory(failureId, body);
   return Response.json({ ok: true });
 }

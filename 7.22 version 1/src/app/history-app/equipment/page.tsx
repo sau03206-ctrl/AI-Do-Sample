@@ -15,7 +15,7 @@ export default async function EquipmentPage({
   searchParams: Promise<{ branch?: string }>;
 }) {
   const { branch } = await searchParams;
-  const rows = listEquipmentSummary(branch);
+  const rows = await listEquipmentSummary(branch);
 
   return (
     <div>

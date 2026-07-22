@@ -33,13 +33,13 @@ function toFormState(row: FailureHistoryRow): FormState {
 
 export default async function EditHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const failure = getFailureHistoryById(Number(id));
+  const failure = await getFailureHistoryById(Number(id));
 
   if (!failure) {
     notFound();
   }
 
-  const attachments = getAttachmentsByFailureId(failure.id).map((a) => ({ id: a.id, fileName: a.file_name }));
+  const attachments = (await getAttachmentsByFailureId(failure.id)).map((a) => ({ id: a.id, fileName: a.file_name }));
 
   return (
     <FailureHistoryForm

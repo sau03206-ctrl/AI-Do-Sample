@@ -44,13 +44,13 @@ export default async function HistoryDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const failure = getFailureHistoryById(Number(id));
+  const failure = await getFailureHistoryById(Number(id));
 
   if (!failure) {
     notFound();
   }
 
-  const attachments = getAttachmentsByFailureId(failure.id);
+  const attachments = await getAttachmentsByFailureId(failure.id);
   const isResolved = failure.status === "조치완료";
 
   return (

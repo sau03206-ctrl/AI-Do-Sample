@@ -14,7 +14,7 @@ export default async function HistoryListPage({
   searchParams: Promise<{ branch?: string; status?: string; failureField?: string; from?: string; to?: string; q?: string }>;
 }) {
   const params = await searchParams;
-  const rows = listFailureHistory(params);
+  const rows = await listFailureHistory(params);
   const hasActiveFilter = Boolean(
     params.branch || params.status || params.failureField || params.from || params.to || params.q,
   );

@@ -11,8 +11,8 @@ function statusBadgeClass(status: string | null): string {
   return status === "조치완료" ? "bg-green-100 text-status-success" : "bg-error-container text-error";
 }
 
-export default function DashboardPage() {
-  const stats = getDashboardStats();
+export default async function DashboardPage() {
+  const stats = await getDashboardStats();
 
   const resolvedRatio = stats.totalCount > 0 ? Math.round(((stats.totalCount - stats.inProgressCount) / stats.totalCount) * 100) : null;
 

@@ -1,84 +1,40 @@
-import Database from "better-sqlite3";
-import path from "node:path";
-import fs from "node:fs";
-import os from "node:os";
+import { createClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
+import path from "node:path";
 
-// Vercel's serverless functions only allow writes under the OS temp dir, and
-// even that doesn't persist across invocations — fine for a demo deployment,
-// but a real deployment needs a proper server (see PRD 비기능요구사항) or a
-// managed DB/blob store instead of local files.
-const RUNTIME_ROOT = process.env.VERCEL ? os.tmpdir() : process.cwd();
-const DATA_DIR = path.join(RUNTIME_ROOT, "data");
-const UPLOADS_DIR = path.join(RUNTIME_ROOT, "uploads");
-fs.mkdirSync(DATA_DIR, { recursive: true });
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+// Supabase Postgres + Storage — replaces the old better-sqlite3 file DB, which
+// didn't survive across Vercel's serverless invocations (see PRD 비기능요구사항).
+const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
+  auth: { persistSession: false },
+});
 
-const db = new Database(path.join(DATA_DIR, "app.db"));
-db.pragma("journal_mode = WAL");
+const ATTACHMENTS_BUCKET = "attachments";
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS failure_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT,
-    report_type TEXT DEFAULT '고장상보',
-    branch TEXT,
-    heat_facility TEXT,
-    equipment_name TEXT,
-    device_name TEXT,
-    failure_field TEXT,
-    status TEXT DEFAULT '조치중',
-    occurred_at TEXT,
-    recovered_at TEXT,
-    apt_count TEXT,
-    building_count TEXT,
-    interruption_duration TEXT,
-    interruption_period TEXT,
-    cause_manager_raw TEXT,
-    cause_owner_raw TEXT,
-    situation TEXT,
-    alarm_status TEXT,
-    cause_4m1e TEXT,
-    impact_heat_loss TEXT,
-    impact_duration TEXT,
-    emergency_action TEXT,
-    recovery_detail TEXT,
-    recurrence_prevention TEXT,
-    reporter TEXT,
-    source TEXT DEFAULT 'manual',
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS attachments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    failure_id INTEGER NOT NULL REFERENCES failure_history(id),
-    file_name TEXT NOT NULL,
-    stored_name TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-`);
-
-/** Adds a column to an existing table if it isn't there yet (for schema changes after first release). */
-function ensureColumn(table: string, column: string, type: string): void {
-  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-  if (!columns.some((c) => c.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+let bucketReady: Promise<void> | null = null;
+/** Creates the attachments Storage bucket on first use if it doesn't exist yet. */
+function ensureBucket(): Promise<void> {
+  if (!bucketReady) {
+    bucketReady = supabase.storage.createBucket(ATTACHMENTS_BUCKET, { public: false }).then(({ error }) => {
+      if (error && !/already exists/i.test(error.message)) throw error;
+    });
   }
+  return bucketReady;
 }
 
-ensureColumn("failure_history", "heat_facility", "TEXT");
-ensureColumn("failure_history", "content_summary", "TEXT");
+function unwrap<T>({ data, error }: { data: T | null; error: { message: string } | null }): T {
+  if (error) throw new Error(error.message);
+  return data as T;
+}
 
 /** Wipes all failure history rows, attachments, and uploaded files. */
-export function resetAllData(): void {
-  db.exec("DELETE FROM attachments;");
-  db.exec("DELETE FROM failure_history;");
-  db.exec("DELETE FROM sqlite_sequence WHERE name IN ('attachments', 'failure_history');");
-
-  for (const fileName of fs.readdirSync(UPLOADS_DIR)) {
-    fs.unlinkSync(path.join(UPLOADS_DIR, fileName));
+export async function resetAllData(): Promise<void> {
+  await ensureBucket();
+  const { data: files } = await supabase.storage.from(ATTACHMENTS_BUCKET).list();
+  if (files?.length) {
+    await supabase.storage.from(ATTACHMENTS_BUCKET).remove(files.map((f) => f.name));
   }
+  unwrap(await supabase.from("attachments").delete().gte("id", 0));
+  unwrap(await supabase.from("failure_history").delete().gte("id", 0));
 }
 
 export interface FailureHistoryInput {
@@ -151,71 +107,63 @@ export interface AttachmentRow {
   created_at: string;
 }
 
-export function createFailureHistory(input: FailureHistoryInput): number {
-  const insert = db.prepare(`
-    INSERT INTO failure_history
-      (title, branch, heat_facility, equipment_name, device_name, failure_field, status, occurred_at, recovered_at,
-       apt_count, building_count, interruption_duration, interruption_period,
-       cause_manager_raw, cause_owner_raw, situation, alarm_status, cause_4m1e,
-       impact_heat_loss, impact_duration, emergency_action, recovery_detail, recurrence_prevention,
-       content_summary, reporter, source, updated_at)
-    VALUES
-      (@title, @branch, @heatFacility, @equipmentName, @deviceName, @failureField, @status, @occurredAt, @recoveredAt,
-       @aptCount, @buildingCount, @interruptionDuration, @interruptionPeriod,
-       @causeManagerRaw, @causeOwnerRaw, @situation, @alarmStatus, @cause4m1e,
-       @impactHeatLoss, @impactDuration, @emergencyAction, @recoveryDetail, @recurrencePrevention,
-       @contentSummary, @reporter, @source, datetime('now'))
-  `);
+function nowText(): string {
+  return new Date().toISOString().replace(/\.\d+Z$/, "");
+}
 
-  const result = insert.run({
-    title: input.title ?? "",
-    branch: input.branch ?? "",
-    heatFacility: input.heatFacility ?? "",
-    equipmentName: input.equipmentName ?? "",
-    deviceName: input.deviceName ?? "",
-    failureField: input.failureField ?? "",
-    status: input.status ?? "조치중",
-    occurredAt: input.occurredAt ?? "",
-    recoveredAt: input.recoveredAt ?? "",
-    aptCount: input.aptCount ?? "",
-    buildingCount: input.buildingCount ?? "",
-    interruptionDuration: input.interruptionDuration ?? "",
-    interruptionPeriod: input.interruptionPeriod ?? "",
-    causeManagerRaw: input.causeManagerRaw ?? "",
-    causeOwnerRaw: input.causeOwnerRaw ?? "",
-    situation: input.situation ?? "",
-    alarmStatus: input.alarmStatus ?? "",
-    cause4m1e: input.cause4m1e ?? "",
-    impactHeatLoss: input.impactHeatLoss ?? "",
-    impactDuration: input.impactDuration ?? "",
-    emergencyAction: input.emergencyAction ?? "",
-    recoveryDetail: input.recoveryDetail ?? "",
-    recurrencePrevention: input.recurrencePrevention ?? "",
-    contentSummary: input.contentSummary ?? "",
-    reporter: input.reporter ?? "",
-    source: input.source ?? "manual",
-  });
+export async function createFailureHistory(input: FailureHistoryInput): Promise<number> {
+  const row = unwrap(
+    await supabase
+      .from("failure_history")
+      .insert({
+        title: input.title ?? "",
+        branch: input.branch ?? "",
+        heat_facility: input.heatFacility ?? "",
+        equipment_name: input.equipmentName ?? "",
+        device_name: input.deviceName ?? "",
+        failure_field: input.failureField ?? "",
+        status: input.status ?? "조치중",
+        occurred_at: input.occurredAt ?? "",
+        recovered_at: input.recoveredAt ?? "",
+        apt_count: input.aptCount ?? "",
+        building_count: input.buildingCount ?? "",
+        interruption_duration: input.interruptionDuration ?? "",
+        interruption_period: input.interruptionPeriod ?? "",
+        cause_manager_raw: input.causeManagerRaw ?? "",
+        cause_owner_raw: input.causeOwnerRaw ?? "",
+        situation: input.situation ?? "",
+        alarm_status: input.alarmStatus ?? "",
+        cause_4m1e: input.cause4m1e ?? "",
+        impact_heat_loss: input.impactHeatLoss ?? "",
+        impact_duration: input.impactDuration ?? "",
+        emergency_action: input.emergencyAction ?? "",
+        recovery_detail: input.recoveryDetail ?? "",
+        recurrence_prevention: input.recurrencePrevention ?? "",
+        content_summary: input.contentSummary ?? "",
+        reporter: input.reporter ?? "",
+        source: input.source ?? "manual",
+        updated_at: nowText(),
+      })
+      .select("id")
+      .single(),
+  ) as { id: number };
 
-  const failureId = Number(result.lastInsertRowid);
+  const failureId = row.id;
 
   if (input.attachments?.length) {
-    const insertAttachment = db.prepare(
-      `INSERT INTO attachments (failure_id, file_name, stored_name) VALUES (@failureId, @fileName, @storedName)`,
+    unwrap(
+      await supabase
+        .from("attachments")
+        .insert(input.attachments.map((att) => ({ failure_id: failureId, file_name: att.fileName, stored_name: att.storedName }))),
     );
-    for (const att of input.attachments) {
-      insertAttachment.run({ failureId, fileName: att.fileName, storedName: att.storedName });
-    }
   }
 
   return failureId;
 }
 
-/** Inserts many rows in a single transaction (used by the Excel migration import). */
-export function bulkCreateFailureHistory(inputs: FailureHistoryInput[]): number {
-  const insertAll = db.transaction((items: FailureHistoryInput[]) => {
-    for (const item of items) createFailureHistory(item);
-  });
-  insertAll(inputs);
+/** Inserts many rows one by one (used by the Excel migration import — not currently wired up anywhere). */
+export async function bulkCreateFailureHistory(inputs: FailureHistoryInput[]): Promise<number> {
+  for (const item of inputs) await createFailureHistory(item);
   return inputs.length;
 }
 
@@ -241,43 +189,36 @@ const SEARCHABLE_COLUMNS = [
   "content_summary",
 ];
 
-export function listFailureHistory(filters: FailureHistoryFilters = {}): FailureHistoryRow[] {
-  const conditions: string[] = [];
-  const params: Record<string, string> = {};
+export async function listFailureHistory(filters: FailureHistoryFilters = {}): Promise<FailureHistoryRow[]> {
+  let query = supabase.from("failure_history").select("*");
 
   if (filters.branch) {
     // Prefix match, not exact: registered records often store the full label
     // (e.g. "청주지사") while the filter list uses the short branch name (e.g. "청주").
-    conditions.push("branch LIKE @branch");
-    params.branch = `${filters.branch}%`;
+    query = query.ilike("branch", `${filters.branch}%`);
   }
   if (filters.status) {
-    conditions.push("status = @status");
-    params.status = filters.status;
+    query = query.eq("status", filters.status);
   }
   if (filters.failureField) {
-    conditions.push("failure_field = @failureField");
-    params.failureField = filters.failureField;
+    query = query.eq("failure_field", filters.failureField);
   }
   if (filters.from) {
-    conditions.push("occurred_at >= @from");
-    params.from = filters.from;
+    query = query.gte("occurred_at", filters.from);
   }
   if (filters.to) {
-    conditions.push("occurred_at <= @to");
-    params.to = `${filters.to}T23:59`;
+    query = query.lte("occurred_at", `${filters.to}T23:59`);
   }
   if (filters.q) {
-    conditions.push(`(${SEARCHABLE_COLUMNS.map((col) => `${col} LIKE @q`).join(" OR ")})`);
-    params.q = `%${filters.q}%`;
+    query = query.or(SEARCHABLE_COLUMNS.map((col) => `${col}.ilike.%${filters.q}%`).join(","));
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-  return db.prepare(`SELECT * FROM failure_history ${where} ORDER BY id DESC`).all(params) as FailureHistoryRow[];
+  return unwrap(await query.order("id", { ascending: false })) as FailureHistoryRow[];
 }
 
-export function getFailureHistoryById(id: number): FailureHistoryRow | undefined {
-  return db.prepare("SELECT * FROM failure_history WHERE id = ?").get(id) as FailureHistoryRow | undefined;
+export async function getFailureHistoryById(id: number): Promise<FailureHistoryRow | undefined> {
+  const row = unwrap(await supabase.from("failure_history").select("*").eq("id", id).maybeSingle()) as FailureHistoryRow | null;
+  return row ?? undefined;
 }
 
 /** Maps FailureHistoryInput keys (camelCase) to their failure_history columns (snake_case). */
@@ -314,49 +255,57 @@ const FIELD_COLUMN_MAP: Record<string, string> = {
  * so callers can send either a full edit form or a small patch (e.g. just
  * `{ status, recoveredAt }` for the "mark as complete" action).
  */
-export function updateFailureHistory(id: number, input: Partial<FailureHistoryInput>): void {
-  const setClauses: string[] = [];
-  const params: Record<string, string | number> = { id };
-
+export async function updateFailureHistory(id: number, input: Partial<FailureHistoryInput>): Promise<void> {
+  const patch: Record<string, string> = {};
   for (const [key, column] of Object.entries(FIELD_COLUMN_MAP)) {
     if (key in input) {
-      setClauses.push(`${column} = @${key}`);
-      params[key] = (input as Record<string, string | undefined>)[key] ?? "";
+      patch[column] = (input as Record<string, string | undefined>)[key] ?? "";
     }
   }
 
-  if (setClauses.length > 0) {
-    db.prepare(`UPDATE failure_history SET ${setClauses.join(", ")}, updated_at = datetime('now') WHERE id = @id`).run(params);
+  if (Object.keys(patch).length > 0) {
+    patch.updated_at = nowText();
+    unwrap(await supabase.from("failure_history").update(patch).eq("id", id));
   }
 
   if (input.attachments?.length) {
-    const insertAttachment = db.prepare(
-      `INSERT INTO attachments (failure_id, file_name, stored_name) VALUES (@failureId, @fileName, @storedName)`,
+    unwrap(
+      await supabase
+        .from("attachments")
+        .insert(input.attachments.map((att) => ({ failure_id: id, file_name: att.fileName, stored_name: att.storedName }))),
     );
-    for (const att of input.attachments) {
-      insertAttachment.run({ failureId: id, fileName: att.fileName, storedName: att.storedName });
-    }
   }
 }
 
-export function getAttachmentsByFailureId(id: number): AttachmentRow[] {
-  return db.prepare("SELECT * FROM attachments WHERE failure_id = ? ORDER BY id ASC").all(id) as AttachmentRow[];
+export async function getAttachmentsByFailureId(id: number): Promise<AttachmentRow[]> {
+  return unwrap(
+    await supabase.from("attachments").select("*").eq("failure_id", id).order("id", { ascending: true }),
+  ) as AttachmentRow[];
 }
 
-export function getAttachmentById(id: number): AttachmentRow | undefined {
-  return db.prepare("SELECT * FROM attachments WHERE id = ?").get(id) as AttachmentRow | undefined;
+export async function getAttachmentById(id: number): Promise<AttachmentRow | undefined> {
+  const row = unwrap(await supabase.from("attachments").select("*").eq("id", id).maybeSingle()) as AttachmentRow | null;
+  return row ?? undefined;
 }
 
-/** Persists an uploaded file's bytes under a random name and returns that name. */
-export function saveUploadedFile(buffer: Buffer, originalName: string): string {
+/** Uploads an attachment's bytes to Storage under a random name and returns that name. */
+export async function saveUploadedFile(buffer: Buffer, originalName: string): Promise<string> {
+  await ensureBucket();
   const ext = path.extname(originalName);
   const storedName = `${crypto.randomUUID()}${ext}`;
-  fs.writeFileSync(path.join(UPLOADS_DIR, storedName), buffer);
+  const { error } = await supabase.storage.from(ATTACHMENTS_BUCKET).upload(storedName, buffer, {
+    contentType: "application/octet-stream",
+  });
+  if (error) throw new Error(error.message);
   return storedName;
 }
 
-export function getUploadedFilePath(storedName: string): string {
-  return path.join(UPLOADS_DIR, storedName);
+/** Downloads a previously-uploaded attachment's bytes, or null if it's missing. */
+export async function downloadUploadedFile(storedName: string): Promise<Buffer | null> {
+  await ensureBucket();
+  const { data, error } = await supabase.storage.from(ATTACHMENTS_BUCKET).download(storedName);
+  if (error || !data) return null;
+  return Buffer.from(await data.arrayBuffer());
 }
 
 export interface DashboardStats {
@@ -373,21 +322,32 @@ export interface DashboardStats {
   recent: FailureHistoryRow[];
 }
 
-function countWhere(sql: string, param?: string): number {
-  const row = param ? db.prepare(sql).get(param) : db.prepare(sql).get();
-  return (row as { c: number }).c;
+function groupCount(rows: FailureHistoryRow[], key: (r: FailureHistoryRow) => string, fallback: string) {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const value = key(row) || fallback;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
 }
 
-/** All figures are computed live from failure_history — no sample/mock data. */
-export function getDashboardStats(): DashboardStats {
+/**
+ * All figures are computed from a single fetch of failure_history — no
+ * sample/mock data. PostgREST doesn't do ad-hoc GROUP BY aggregation the way
+ * raw SQL did, so breakdowns are computed here in JS instead; fine at this
+ * app's scale (an internal plant's failure log, not a high-volume table).
+ */
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const rows = unwrap(await supabase.from("failure_history").select("*")) as FailureHistoryRow[];
+
   const now = new Date();
   const thisYear = String(now.getFullYear());
   const thisMonthKey = `${thisYear}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-  const totalCount = countWhere("SELECT COUNT(*) as c FROM failure_history");
-  const thisMonthCount = countWhere("SELECT COUNT(*) as c FROM failure_history WHERE substr(occurred_at, 1, 7) = ?", thisMonthKey);
-  const ytdCount = countWhere("SELECT COUNT(*) as c FROM failure_history WHERE substr(occurred_at, 1, 4) = ?", thisYear);
-  const inProgressCount = countWhere("SELECT COUNT(*) as c FROM failure_history WHERE status = '조치중'");
+  const totalCount = rows.length;
+  const thisMonthCount = rows.filter((r) => (r.occurred_at ?? "").startsWith(thisMonthKey)).length;
+  const ytdCount = rows.filter((r) => (r.occurred_at ?? "").startsWith(thisYear)).length;
+  const inProgressCount = rows.filter((r) => r.status === "조치중").length;
 
   const monthlyTrend: { month: string; count: number }[] = [];
   for (let i = 5; i >= 0; i--) {
@@ -395,32 +355,19 @@ export function getDashboardStats(): DashboardStats {
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     monthlyTrend.push({
       month: `${String(d.getMonth() + 1).padStart(2, "0")}월`,
-      count: countWhere("SELECT COUNT(*) as c FROM failure_history WHERE substr(occurred_at, 1, 7) = ?", key),
+      count: rows.filter((r) => (r.occurred_at ?? "").startsWith(key)).length,
     });
   }
 
-  const failureFieldBreakdown = db
-    .prepare(
-      `SELECT COALESCE(NULLIF(failure_field, ''), '미분류') as field, COUNT(*) as count
-       FROM failure_history GROUP BY field ORDER BY count DESC`,
-    )
-    .all() as { field: string; count: number }[];
+  const failureFieldBreakdown = groupCount(rows, (r) => r.failure_field ?? "", "미분류").map(([field, count]) => ({ field, count }));
+  const branchBreakdown = groupCount(rows, (r) => r.branch ?? "", "미상")
+    .slice(0, 10)
+    .map(([branch, count]) => ({ branch, count }));
+  const topEquipment = groupCount(rows, (r) => r.equipment_name ?? "", "미상")
+    .slice(0, 10)
+    .map(([name, count]) => ({ name, count }));
 
-  const branchBreakdown = db
-    .prepare(
-      `SELECT COALESCE(NULLIF(branch, ''), '미상') as branch, COUNT(*) as count
-       FROM failure_history GROUP BY branch ORDER BY count DESC LIMIT 10`,
-    )
-    .all() as { branch: string; count: number }[];
-
-  const topEquipment = db
-    .prepare(
-      `SELECT COALESCE(NULLIF(equipment_name, ''), '미상') as name, COUNT(*) as count
-       FROM failure_history GROUP BY name ORDER BY count DESC LIMIT 10`,
-    )
-    .all() as { name: string; count: number }[];
-
-  const recent = db.prepare("SELECT * FROM failure_history ORDER BY id DESC LIMIT 5").all() as FailureHistoryRow[];
+  const recent = [...rows].sort((a, b) => b.id - a.id).slice(0, 5);
 
   return {
     totalCount,
@@ -447,21 +394,34 @@ export interface EquipmentSummaryRow {
 
 /** Equipment isn't a managed entity yet (PRD open issue) — this aggregates
  * distinct branch+설비명 pairs straight out of registered failure history. */
-export function listEquipmentSummary(branch?: string): EquipmentSummaryRow[] {
-  const branchClause = branch ? "AND f1.branch LIKE @branch" : "";
-  return db
-    .prepare(
-      `SELECT f1.branch as branch,
-              f1.equipment_name as equipmentName,
-              COUNT(*) as count,
-              MAX(f1.occurred_at) as lastOccurredAt,
-              (SELECT status FROM failure_history f2
-                 WHERE f2.branch = f1.branch AND f2.equipment_name = f1.equipment_name
-                 ORDER BY f2.occurred_at DESC LIMIT 1) as lastStatus
-       FROM failure_history f1
-       WHERE f1.equipment_name IS NOT NULL AND f1.equipment_name != '' ${branchClause}
-       GROUP BY f1.branch, f1.equipment_name
-       ORDER BY count DESC`,
-    )
-    .all(branch ? { branch: `${branch}%` } : {}) as EquipmentSummaryRow[];
+export async function listEquipmentSummary(branch?: string): Promise<EquipmentSummaryRow[]> {
+  let query = supabase.from("failure_history").select("*").not("equipment_name", "is", null).neq("equipment_name", "");
+  if (branch) query = query.ilike("branch", `${branch}%`);
+  const rows = unwrap(await query) as FailureHistoryRow[];
+
+  // Keyed on JSON (not a plain joined string) so branch/equipment names that
+  // themselves contain spaces don't get misparsed back apart.
+  const groups = new Map<string, { branch: string; equipmentName: string; rows: FailureHistoryRow[] }>();
+  for (const row of rows) {
+    const rowBranch = row.branch ?? "";
+    const equipmentName = row.equipment_name ?? "";
+    const key = JSON.stringify([rowBranch, equipmentName]);
+    const group = groups.get(key) ?? { branch: rowBranch, equipmentName, rows: [] };
+    group.rows.push(row);
+    groups.set(key, group);
+  }
+
+  const summaries: EquipmentSummaryRow[] = [];
+  for (const { branch: rowBranch, equipmentName, rows: list } of groups.values()) {
+    const sorted = [...list].sort((a, b) => (a.occurred_at ?? "") < (b.occurred_at ?? "") ? 1 : -1);
+    summaries.push({
+      branch: rowBranch,
+      equipmentName,
+      count: list.length,
+      lastOccurredAt: sorted[0]?.occurred_at ?? null,
+      lastStatus: sorted[0]?.status ?? null,
+    });
+  }
+
+  return summaries.sort((a, b) => b.count - a.count);
 }

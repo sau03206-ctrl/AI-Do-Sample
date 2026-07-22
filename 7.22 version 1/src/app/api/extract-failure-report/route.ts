@@ -93,7 +93,7 @@ export async function POST(request: Request) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const storedName = saveUploadedFile(buffer, file.name);
+  const storedName = await saveUploadedFile(buffer, file.name);
   const attachment = { fileName: file.name, storedName };
 
   if (extension === "hwp" || extension === "hwpx") {
