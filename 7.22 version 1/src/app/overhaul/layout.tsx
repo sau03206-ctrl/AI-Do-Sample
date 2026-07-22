@@ -14,8 +14,6 @@ export default function OverhaulLayout({
 }>) {
   return (
     <div className="overhaul-scope">
-      {/* eslint-disable-next-line @next/next/no-page-custom-font -- React hoists this into <head>; next/font doesn't support loading a plain CDN CSS file like Pretendard's */}
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
       <StoreProvider>
         <OverhaulShell>{children}</OverhaulShell>
       </StoreProvider>

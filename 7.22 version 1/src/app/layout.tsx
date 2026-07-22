@@ -16,7 +16,7 @@ export default function RootLayout({
       <head>
         {/* eslint-disable-next-line @next/next/no-page-custom-font -- App Router root layout applies to every route; next/font doesn't support the Material Symbols icon font */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Hanken+Grotesk:wght@600;700&family=JetBrains+Mono&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Geist:wght@500;600&display=swap"
           rel="stylesheet"
         />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
