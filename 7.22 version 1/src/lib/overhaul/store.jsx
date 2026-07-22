@@ -1,11 +1,12 @@
 "use client";
 
-// 전역 데이터 스토어 — React Context + IndexedDB 영속화
+// 전역 데이터 스토어 — React Context + Supabase(서버 API) 영속화
+// (예전엔 idb-keyval로 브라우저에만 저장했는데, 팀 전체가 같은 데이터를 보도록
+// 서버 API(/api/overhaul/*)를 거쳐 Supabase에 저장하는 방식으로 변경.
+// role은 "권한 전환 데모"용 로컬 토글이라 그대로 브라우저에만 남겨둠.)
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { get, set } from 'idb-keyval'
-import { buildSeedTasks, buildSeedProject } from './seed'
 
-const KEY = 'plantsync-state-v1'
+const ROLE_KEY = 'plantsync-role-v1'
 const StoreCtx = createContext(null)
 
 const ROLES = {
@@ -14,84 +15,78 @@ const ROLES = {
   viewer: { label: '조회자', can: { upload: false, edit: false, assign: false, report: true, manageUsers: false } },
 }
 
-function initialState() {
-  return {
-    role: 'admin',
-    project: buildSeedProject(),
-    tasks: buildSeedTasks(),
-    lastAnalysis: null,
-  }
+async function api(path, options) {
+  const res = await fetch(path, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+  })
+  if (!res.ok) throw new Error(`${path} failed (${res.status})`)
+  return res.json()
 }
 
 export function StoreProvider({ children }) {
+  const [role, setRoleState] = useState('admin')
   const [state, setState] = useState(null)
 
-  // 최초 로드: IndexedDB → 없으면 시드
+  useEffect(() => {
+    const saved = window.localStorage.getItem(ROLE_KEY)
+    if (saved && ROLES[saved]) setRoleState(saved)
+  }, [])
+
+  const refresh = useCallback(async () => {
+    const data = await api('/api/overhaul/state')
+    setState(data)
+  }, [])
+
   useEffect(() => {
     let alive = true
-    get(KEY).then((saved) => {
-      if (!alive) return
-      setState(saved && saved.tasks ? saved : initialState())
+    refresh().catch((err) => {
+      if (alive) console.error('오버홀 데이터를 불러오지 못했습니다', err)
     })
     return () => {
       alive = false
     }
-  }, [])
+  }, [refresh])
 
-  // 변경 시 영속화
-  useEffect(() => {
-    if (state) set(KEY, state)
-  }, [state])
-
-  const update = useCallback((fn) => {
-    setState((prev) => fn(prev))
-  }, [])
+  const setRole = (r) => {
+    setRoleState(r)
+    window.localStorage.setItem(ROLE_KEY, r)
+  }
 
   const value = {
     state,
-    role: state?.role || 'admin',
-    roleInfo: ROLES[state?.role || 'admin'],
-    can: ROLES[state?.role || 'admin'].can,
+    role,
+    roleInfo: ROLES[role],
+    can: ROLES[role].can,
 
-    setRole: (role) => update((s) => ({ ...s, role })),
+    setRole,
 
-    setProject: (patch) => update((s) => ({ ...s, project: { ...s.project, ...patch } })),
+    setProject: async (patch) => {
+      await api('/api/overhaul/project', { method: 'PATCH', body: JSON.stringify(patch) })
+      await refresh()
+    },
 
     // 엑셀 분석 결과를 작업항목으로 확정
-    commitAnalysis: (analysis) =>
-      update((s) => ({
-        ...s,
-        lastAnalysis: {
-          fileName: analysis.fileName,
-          sheetCount: analysis.sheetCount,
-          totalRows: analysis.totalRows,
-          extractedCount: analysis.extractedCount,
-          excludedCount: analysis.excludedCount,
-          byField: analysis.byField,
-          byEquipment: analysis.byEquipment,
-        },
-        tasks: analysis.tasks.map((t) => ({ ...t, doneQty: 0, assignee: null, entries: [] })),
-      })),
+    commitAnalysis: async (analysis) => {
+      await api('/api/overhaul/commit-analysis', { method: 'POST', body: JSON.stringify(analysis) })
+      await refresh()
+    },
 
-    setLastAnalysis: (analysis) => update((s) => ({ ...s, lastAnalysis: analysis })),
+    assignTask: async (id, assignee) => {
+      await api(`/api/overhaul/tasks/${id}/assign`, { method: 'PATCH', body: JSON.stringify({ assignee }) })
+      await refresh()
+    },
 
-    assignTask: (id, assignee) =>
-      update((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, assignee } : t)) })),
+    // 실적 입력 (하루 1회 — 서버에서 task_id+date 기준으로 upsert)
+    addEntry: async (id, entry) => {
+      await api(`/api/overhaul/tasks/${id}/entries`, { method: 'POST', body: JSON.stringify(entry) })
+      await refresh()
+    },
 
-    // 실적 입력 (하루 1회)
-    addEntry: (id, entry) =>
-      update((s) => ({
-        ...s,
-        tasks: s.tasks.map((t) => {
-          if (t.id !== id) return t
-          const entries = (t.entries || []).filter((e) => e.date !== entry.date)
-          entries.push(entry)
-          const doneQty = Math.max(...entries.map((e) => e.cumulative), 0)
-          return { ...t, doneQty, entries }
-        }),
-      })),
-
-    resetDemo: () => setState(initialState()),
+    resetDemo: async () => {
+      await api('/api/overhaul/reset', { method: 'POST' })
+      await refresh()
+    },
   }
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>

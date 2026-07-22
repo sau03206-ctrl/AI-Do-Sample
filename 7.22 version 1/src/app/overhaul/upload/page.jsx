@@ -63,8 +63,8 @@ export default function UploadAnalysis() {
     }
   }
 
-  function confirmAnalysis() {
-    commitAnalysis(analysis);
+  async function confirmAnalysis() {
+    await commitAnalysis(analysis);
     router.push("/overhaul/tasks");
   }
 

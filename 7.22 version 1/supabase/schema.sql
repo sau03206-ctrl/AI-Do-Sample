@@ -56,3 +56,16 @@ alter table attachments enable row level security;
 
 -- 첨부파일(PDF/HWP) 저장용 Storage 버킷은 앱 코드가 최초 실행 시 자동으로
 -- 만듭니다 (supabase.storage.createBucket) — 여기서 따로 만들 필요 없음.
+
+-- ============================================================
+-- PlantSync Pro (/overhaul) — 브라우저 IndexedDB에서 마이그레이션
+--
+-- 이미 준비되어 있던 overhaul_projects / overhaul_tasks / daily_progress /
+-- task_photos 테이블을 그대로 사용합니다. 여기서는 그 테이블들에 원래
+-- 앱에는 있었지만 저 스키마엔 없는 필드(태그, 비고, 엑셀 분석 시 확인필요
+-- 항목 플래그)를 잃지 않도록 nullable 컬럼만 추가합니다 — 기존 컬럼/제약/
+-- 다른 테이블은 전혀 건드리지 않는 순수 추가(additive) 마이그레이션입니다.
+-- ============================================================
+alter table overhaul_tasks add column if not exists tag text;
+alter table overhaul_tasks add column if not exists remark text default '';
+alter table overhaul_tasks add column if not exists issues jsonb default '[]'::jsonb;

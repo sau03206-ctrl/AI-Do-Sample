@@ -122,8 +122,8 @@ function PerformanceEntryInner() {
     setSaved(false);
   }
 
-  function submit() {
-    addEntry(task.id, {
+  async function submit() {
+    await addEntry(task.id, {
       date: form.date,
       doneToday: Number(form.doneToday) || 0,
       cumulative: Math.min(task.planQty, Number(form.cumulative) || 0),
