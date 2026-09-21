@@ -8,6 +8,7 @@ import TaskManagement from './pages/TaskManagement'
 import PerformanceEntry from './pages/PerformanceEntry'
 import Schedule from './pages/Schedule'
 import Reports from './pages/Reports'
+import Chatbot from './pages/Chatbot'
 
 export default function App() {
   const { state } = useStore()
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/schedule" element={<Schedule />} />
         <Route path="/entry" element={<PerformanceEntry />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/chatbot" element={<Chatbot />} />
       </Routes>
     </Layout>
   )

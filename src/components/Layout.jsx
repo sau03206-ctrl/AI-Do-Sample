@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { Icon, Avatar } from './ui'
 import { useStore, ROLES } from '../lib/store'
+import DdasomiChatbot from './chatbot/DdasomiChatbot'
 
 const NAV = [
   { to: '/', icon: 'dashboard', label: '대시보드', end: true },
@@ -167,6 +168,8 @@ export default function Layout({ children }) {
           <MobileLink key={n.to} n={n} />
         ))}
       </nav>
+
+      <DdasomiChatbot />
     </div>
   )
 }
